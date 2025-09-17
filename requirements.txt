@@ -5,3 +5,4 @@ Pillow
 gTTS
 speechrecognition
 pyaudio
+st-mic-recorder
