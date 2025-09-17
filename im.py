@@ -165,30 +165,34 @@ with tab1:
                 st.text(traceback.format_exc())
 
 # ===============================
-# 🔹 Tab 2: Video Idea Organizer
+# 🔹 Tab 2: Video Idea Organizer (Enhanced)
 # ===============================
 with tab2:
     st.header("🎬 Video Idea Organizer")
 
     raw_idea = st.text_area("📝 Enter your raw video idea:", placeholder="Type your video idea here...")
 
-    # Fixed category and tone
-    category = "Content Creation"
-    tone = "Creative"
-    st.markdown(f"**Category:** {category}")
-    st.markdown(f"**Tone:** {tone}")
+    # Tone & Category presets
+    category_options = ["Content Creation", "Project Idea", "Business", "Academic"]
+    tone_options = ["Creative", "Funny", "Motivational", "Tutorial", "Educational"]
 
-    refine_btn = st.button("Refine Idea into Video Script & Images")
+    category = st.selectbox("📂 Select Category:", category_options, index=0)
+    tone = st.selectbox("🎨 Select Tone:", tone_options, index=0)
 
-    def refine_video_idea(raw_text, category, tone):
+    refine_btn = st.button("Refine Idea into Video Script & Image Prompts + Narration")
+
+    def refine_video_idea_enhanced(raw_text, category, tone):
         if not raw_text.strip():
-            return {"script": "Please enter a raw video idea.", "images": ""}
+            return {"script": "Please enter a raw video idea.", "images": "", "narration": ""}
 
         prompt = f"""
         You are a professional video content creator and AI prompt expert.
         Refine the following idea into a **video script** for a **minimum 1-minute video**.
         Include 4-6 scenes or segments.
-        For each scene, provide a short **image prompt** describing visuals for AI image generation.
+        For each scene, provide:
+        1. Script text
+        2. Short image prompt for AI image generation
+        3. Narration text suitable for TTS
         Maintain category: {category} and tone: {tone}.
         Raw idea: {raw_text}
         Provide output in {selected_language}.
@@ -196,30 +200,69 @@ with tab2:
         Scene 1:
         Script: ...
         Image Prompt: ...
+        Narration: ...
         Scene 2:
         Script: ...
         Image Prompt: ...
-        ...
+        Narration: ...
         """
         try:
             model = genai.GenerativeModel('gemini-1.5-flash-002')
             response = model.generate_content(prompt)
-            return {"script": response.text, "images": response.text}  # same output for simplicity
+            return {"script": response.text, "images": response.text, "narration": response.text}
         except Exception as e:
-            return {"script": f"Error refining idea: {e}", "images": ""}
+            return {"script": f"Error: {e}", "images": "", "narration": ""}
 
     if refine_btn:
-        result = refine_video_idea(raw_idea, category, tone)
+        result = refine_video_idea_enhanced(raw_idea, category, tone)
         st.subheader("✨ Refined Video Script & Scenes")
         st.info(result["script"])
+
+        st.subheader("🎤 Narration Script (TTS-ready)")
+        st.code(result["narration"])
 
         st.session_state["video_idea_history"].append({
             "raw": raw_idea,
             "script": result["script"],
             "images": result["images"],
+            "narration": result["narration"],
             "category": category,
             "tone": tone
         })
+
+        # Export options
+        st.subheader("💾 Export Options")
+        export_format = st.radio("Select format:", ["PDF", "JSON", "Markdown"], index=0)
+        export_filename = f"video_idea_{raw_idea[:15].replace(' ','_')}.{export_format.lower()}"
+
+        if st.button("Export"):
+            if export_format == "JSON":
+                import json
+                data = {
+                    "raw": raw_idea,
+                    "script": result["script"],
+                    "images": result["images"],
+                    "narration": result["narration"],
+                    "category": category,
+                    "tone": tone
+                }
+                st.download_button(label="Download JSON", data=json.dumps(data, indent=2),
+                                   file_name=export_filename, mime="application/json")
+            elif export_format == "Markdown":
+                md_data = f"# Video Idea: {raw_idea}\n\n**Category:** {category}\n**Tone:** {tone}\n\n## Script & Scenes\n{result['script']}\n\n## Image Prompts\n{result['images']}\n\n## Narration\n{result['narration']}"
+                st.download_button(label="Download Markdown", data=md_data,
+                                   file_name=export_filename, mime="text/markdown")
+            elif export_format == "PDF":
+                from fpdf import FPDF
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                pdf.set_font("Arial", size=12)
+                pdf.multi_cell(0, 6, f"Video Idea: {raw_idea}\nCategory: {category}\nTone: {tone}\n\nScript & Scenes:\n{result['script']}\n\nImage Prompts:\n{result['images']}\n\nNarration:\n{result['narration']}")
+                pdf_output = f"/tmp/{export_filename}"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    st.download_button(label="Download PDF", data=f, file_name=export_filename)
 
 
 
