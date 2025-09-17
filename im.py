@@ -1,4 +1,4 @@
-# streamlit_gemini_app_v3.py
+# streamlit_gemini_app_v4.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -11,7 +11,7 @@ import traceback
 # ===============================
 # 🔹 App Config
 # ===============================
-st.set_page_config(page_title="AI Image & Knowledge Assistant", layout="wide")
+st.set_page_config(page_title="AI Image & Knowledge Assistant + Idea Organizer", layout="wide")
 
 # ===============================
 # 🔹 Gemini Config
@@ -28,6 +28,9 @@ else:
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
+if "idea_history" not in st.session_state:
+    st.session_state["idea_history"] = []
+
 # ===============================
 # 🔹 Sidebar
 # ===============================
@@ -36,12 +39,17 @@ st.sidebar.title("📌 Settings / History")
 # How it works section
 st.sidebar.subheader("📝 How It Works")
 st.sidebar.markdown("""
-1. Upload one or more images (jpg, jpeg, png).  
-2. (Optional) Enter a question or prompt about the image(s).  
-3. Select the language for the AI response.  
-4. Click **Analyze** to get AI insights.  
-5. View response in the main tab.  
-6. Clear or download your chat history from the sidebar.  
+**Image & Text Analysis:**  
+1. Upload images (jpg, jpeg, png).  
+2. Optionally add a question.  
+3. Select language and click Analyze.  
+4. View response in main tab.  
+
+**Daily Idea Organizer:**  
+1. Enter any raw idea.  
+2. Select category & tone.  
+3. Click Refine to polish the prompt.  
+4. Save or share refined ideas.  
 """)
 
 # Language selection
@@ -50,29 +58,51 @@ selected_language = st.sidebar.selectbox("🌐 Select Output Language:", languag
 
 # History controls
 st.sidebar.subheader("📜 History")
-if st.sidebar.button("🗑️ Clear History"):
+if st.sidebar.button("🗑️ Clear AI History"):
     st.session_state["history"] = []
-    st.sidebar.success("History cleared!")
+    st.sidebar.success("AI history cleared!")
 
-if st.sidebar.button("💾 Download History"):
+if st.sidebar.button("💾 Download AI History"):
     if st.session_state["history"]:
         txt_data = ""
         for i, (q, r) in enumerate(st.session_state["history"], 1):
             txt_data += f"Query {i}:\n{q}\nResponse:\n{r}\n\n{'-'*40}\n\n"
         st.sidebar.download_button(
-            label="Download as TXT",
+            label="Download AI History as TXT",
             data=txt_data,
             file_name="ai_history.txt",
             mime="text/plain"
         )
     else:
-        st.sidebar.warning("No history to download!")
+        st.sidebar.warning("No AI history to download!")
+
+# Idea Organizer history
+if st.sidebar.button("🗑️ Clear Idea History"):
+    st.session_state["idea_history"] = []
+    st.sidebar.success("Idea history cleared!")
+
+if st.sidebar.button("💾 Download Idea History"):
+    if st.session_state["idea_history"]:
+        txt_data = ""
+        for i, item in enumerate(st.session_state["idea_history"], 1):
+            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nRefined: {item['refined']}\nCategory: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
+        st.sidebar.download_button(
+            label="Download Idea History as TXT",
+            data=txt_data,
+            file_name="idea_history.txt",
+            mime="text/plain"
+        )
+    else:
+        st.sidebar.warning("No idea history to download!")
 
 # ===============================
 # 🔹 Tabs UI
 # ===============================
-tab1, tab2 = st.tabs(["Image & Text Analysis", "History"])
+tab1, tab2, tab3 = st.tabs(["Image & Text Analysis", "History", "Daily Idea Organizer"])
 
+# ===============================
+# 🔹 Tab 1: Image & Text Analysis
+# ===============================
 with tab1:
     st.header("🔍 Image & Text Analysis")
 
@@ -140,14 +170,74 @@ with tab1:
                 st.text(traceback.format_exc())
 
 # ===============================
-# 🔹 History Tab
+# 🔹 Tab 2: History
 # ===============================
 with tab2:
-    st.header("📜 Chat History")
+    st.header("📜 Chat & Idea History")
+    st.subheader("AI Image/Text Queries")
     if st.session_state["history"]:
         for i, (q, r) in enumerate(st.session_state["history"], 1):
             with st.expander(f"Query {i}"):
                 st.markdown(f"**Q:** {q}")
                 st.markdown(f"**A:** {r}")
     else:
-        st.info("No history available.")
+        st.info("No AI history available.")
+
+    st.subheader("Refined Ideas")
+    if st.session_state["idea_history"]:
+        for i, item in enumerate(st.session_state["idea_history"], 1):
+            with st.expander(f"Idea {i}"):
+                st.markdown(f"**Raw:** {item['raw']}")
+                st.markdown(f"**Refined:** {item['refined']}")
+                st.markdown(f"**Category:** {item['category']}")
+                st.markdown(f"**Tone:** {item['tone']}")
+    else:
+        st.info("No refined ideas yet.")
+
+# ===============================
+# 🔹 Tab 3: Daily Idea Organizer
+# ===============================
+with tab3:
+    st.header("💡 Daily Idea Organizer")
+
+    raw_idea = st.text_area("📝 Enter your raw idea:", placeholder="Type anything...")
+    category = st.selectbox("📂 Select Category:", ["Project Idea", "Content Creation", "Business", "Academic"])
+    tone = st.selectbox("🎨 Select Tone:", ["Creative", "Professional", "Academic"])
+
+    refine_btn = st.button("Refine Idea")
+
+    def refine_idea(raw_text, category, tone):
+        """
+        Generate a polished idea prompt using Gemini AI.
+        """
+        if not raw_text.strip():
+            return "Please enter a raw idea to refine."
+        prompt = f"""
+        You are an expert prompt writer. Refine the following raw idea into a clear, actionable prompt.
+        Category: {category}
+        Tone: {tone}
+        Raw idea: {raw_text}
+        Provide the refined prompt in {selected_language}.
+        """
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash-002')
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            return f"Error refining idea: {e}"
+
+    if refine_btn:
+        refined = refine_idea(raw_idea, category, tone)
+        st.subheader("✨ Refined Prompt")
+        st.info(refined)
+
+        # Save to session history
+        st.session_state["idea_history"].append({
+            "raw": raw_idea,
+            "refined": refined,
+            "category": category,
+            "tone": tone
+        })
+
+        # Optional: share or copy button
+        st.button("📋 Copy to Clipboard", on_click=lambda: st.experimental_set_query_params(copy=refined))
