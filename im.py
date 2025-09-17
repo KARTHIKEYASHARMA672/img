@@ -1,4 +1,4 @@
-# streamlit_gemini_app_v6.py
+# streamlit_gemini_app_v6_fixed.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -88,7 +88,14 @@ if st.sidebar.button("💾 Download Video Idea History"):
     if st.session_state["video_idea_history"]:
         txt_data = ""
         for i, item in enumerate(st.session_state["video_idea_history"], 1):
-            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nScript:\n{item['script']}\nImage Prompts:\n{item['images']}\nCategory: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
+            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nScript:\n{item['script']}\n"
+            txt_data += "Scenes:\n"
+            for scene in item.get("scenes", []):
+                txt_data += f"  {scene.get('title','Scene')}:\n"
+                txt_data += f"    Script: {scene.get('script','')}\n"
+                txt_data += f"    Image Prompt: {scene.get('image','')}\n"
+                txt_data += f"    Narration: {scene.get('narration','')}\n"
+            txt_data += f"Category: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
         st.sidebar.download_button(
             label="Download Video Idea History as TXT",
             data=txt_data,
@@ -266,8 +273,6 @@ with tab2:
         st.download_button("💾 Export as JSON", data=str(result), file_name="video_idea.json", mime="application/json")
         st.download_button("💾 Export as Markdown", data=result["script"], file_name="video_idea.md", mime="text/markdown")
 
-
-
 # ===============================
 # 🔹 Tab 3: Analyzer History
 # ===============================
@@ -276,7 +281,6 @@ with tab3:
     if st.session_state["analyzer_history"]:
         to_delete = []
         for i, (q, r) in enumerate(st.session_state["analyzer_history"]):
-            # Create a row for expander header + delete button
             col1, col2 = st.columns([0.9, 0.1])
             with col1:
                 exp = st.expander(f"Query {i+1}")
@@ -306,11 +310,15 @@ with tab4:
                 if st.button("🗑️", key=f"del_video_{i}"):
                     to_delete.append(i)
             with exp:
-                st.markdown(f"**Raw:** {item['raw']}")
-                st.markdown(f"**Script & Scenes:**\n{item['script']}")
-                st.markdown(f"**Image Prompts:**\n{item['images']}")
+                st.markdown(f"**Raw Idea:** {item['raw']}")
                 st.markdown(f"**Category:** {item['category']}")
                 st.markdown(f"**Tone:** {item['tone']}")
+                st.markdown(f"**Script & Scenes:**")
+                for scene in item.get("scenes", []):
+                    st.markdown(f"### {scene.get('title','Scene')}")
+                    st.markdown(f"**Script:** {scene.get('script','')}")
+                    st.markdown(f"**Image Prompt:** {scene.get('image','')}")
+                    st.markdown(f"**Narration:** {scene.get('narration','')}")
         for idx in sorted(to_delete, reverse=True):
             st.session_state["video_idea_history"].pop(idx)
     else:
