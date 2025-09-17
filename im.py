@@ -1,4 +1,4 @@
-# streamlit_gemini_app_v4.py
+# streamlit_gemini_app_v5.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -11,7 +11,7 @@ import traceback
 # ===============================
 # 🔹 App Config
 # ===============================
-st.set_page_config(page_title="AI Image & Knowledge Assistant + Idea Organizer", layout="wide")
+st.set_page_config(page_title="AI Image & Knowledge Assistant + Video Idea Organizer", layout="wide")
 
 # ===============================
 # 🔹 Gemini Config
@@ -36,7 +36,6 @@ if "idea_history" not in st.session_state:
 # ===============================
 st.sidebar.title("📌 Settings / History")
 
-# How it works section
 st.sidebar.subheader("📝 How It Works")
 st.sidebar.markdown("""
 **Image & Text Analysis:**  
@@ -45,11 +44,12 @@ st.sidebar.markdown("""
 3. Select language and click Analyze.  
 4. View response in main tab.  
 
-**Daily Idea Organizer:**  
-1. Enter any raw idea.  
+**Daily Idea Organizer (Video Scripts):**  
+1. Enter your raw idea.  
 2. Select category & tone.  
-3. Click Refine to polish the prompt.  
-4. Save or share refined ideas.  
+3. Click Refine to generate a video script with scene-wise image prompts.  
+4. Script will be at least 1 minute long.  
+5. Save or share refined video ideas.  
 """)
 
 # Language selection
@@ -76,7 +76,6 @@ if st.sidebar.button("💾 Download AI History"):
     else:
         st.sidebar.warning("No AI history to download!")
 
-# Idea Organizer history
 if st.sidebar.button("🗑️ Clear Idea History"):
     st.session_state["idea_history"] = []
     st.sidebar.success("Idea history cleared!")
@@ -85,7 +84,7 @@ if st.sidebar.button("💾 Download Idea History"):
     if st.session_state["idea_history"]:
         txt_data = ""
         for i, item in enumerate(st.session_state["idea_history"], 1):
-            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nRefined: {item['refined']}\nCategory: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
+            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nRefined Script:\n{item['refined_script']}\nImage Prompts:\n{item['image_prompts']}\nCategory: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
         st.sidebar.download_button(
             label="Download Idea History as TXT",
             data=txt_data,
@@ -98,7 +97,7 @@ if st.sidebar.button("💾 Download Idea History"):
 # ===============================
 # 🔹 Tabs UI
 # ===============================
-tab1, tab2, tab3 = st.tabs(["Image & Text Analysis", "History", "Daily Idea Organizer"])
+tab1, tab2, tab3 = st.tabs(["Image & Text Analysis", "History", "Video Idea Organizer"])
 
 # ===============================
 # 🔹 Tab 1: Image & Text Analysis
@@ -106,7 +105,6 @@ tab1, tab2, tab3 = st.tabs(["Image & Text Analysis", "History", "Daily Idea Orga
 with tab1:
     st.header("🔍 Image & Text Analysis")
 
-    # User inputs
     user_text = st.text_input("💬 Ask a Question (optional):", key="input_text")
     uploaded_files = st.file_uploader(
         "📂 Upload image(s)...", 
@@ -142,8 +140,6 @@ with tab1:
             try:
                 pil_images = []
                 st.subheader("📷 Uploaded Images")
-                
-                # Side-by-side display using columns
                 num_files = len(uploaded_files)
                 cols = st.columns(num_files)
                 for idx, f in enumerate(uploaded_files):
@@ -157,10 +153,8 @@ with tab1:
                     st.subheader("✨ Response")
                     st.write(resp_text)
 
-                    # Save history
                     st.session_state["history"].append((user_q, resp_text))
 
-                    # Generate summary (first 2–3 sentences)
                     summary_text = ". ".join(resp_text.split(".")[:3]) + "."
                     st.subheader("📝 Summary")
                     st.write(summary_text)
@@ -173,7 +167,8 @@ with tab1:
 # 🔹 Tab 2: History
 # ===============================
 with tab2:
-    st.header("📜 Chat & Idea History")
+    st.header("📜 Chat & Video Idea History")
+
     st.subheader("AI Image/Text Queries")
     if st.session_state["history"]:
         for i, (q, r) in enumerate(st.session_state["history"], 1):
@@ -183,61 +178,72 @@ with tab2:
     else:
         st.info("No AI history available.")
 
-    st.subheader("Refined Ideas")
+    st.subheader("Refined Video Ideas")
     if st.session_state["idea_history"]:
         for i, item in enumerate(st.session_state["idea_history"], 1):
             with st.expander(f"Idea {i}"):
                 st.markdown(f"**Raw:** {item['raw']}")
-                st.markdown(f"**Refined:** {item['refined']}")
+                st.markdown(f"**Refined Script:**\n{item['refined_script']}")
+                st.markdown(f"**Image Prompts:**\n{item['image_prompts']}")
                 st.markdown(f"**Category:** {item['category']}")
                 st.markdown(f"**Tone:** {item['tone']}")
     else:
-        st.info("No refined ideas yet.")
+        st.info("No refined video ideas yet.")
 
 # ===============================
-# 🔹 Tab 3: Daily Idea Organizer
+# 🔹 Tab 3: Video Idea Organizer
 # ===============================
 with tab3:
-    st.header("💡 Daily Idea Organizer")
+    st.header("🎬 Video Idea Organizer")
 
-    raw_idea = st.text_area("📝 Enter your raw idea:", placeholder="Type anything...")
+    raw_idea = st.text_area("📝 Enter your raw video idea:", placeholder="Type your video idea here...")
     category = st.selectbox("📂 Select Category:", ["Project Idea", "Content Creation", "Business", "Academic"])
     tone = st.selectbox("🎨 Select Tone:", ["Creative", "Professional", "Academic"])
 
-    refine_btn = st.button("Refine Idea")
+    refine_btn = st.button("Refine Idea into Script & Images")
 
-    def refine_idea(raw_text, category, tone):
+    def refine_video_idea(raw_text, category, tone):
         """
-        Generate a polished idea prompt using Gemini AI.
+        Generate a video script and image prompts for a 1+ minute video.
         """
         if not raw_text.strip():
-            return "Please enter a raw idea to refine."
+            return {"script": "Please enter a raw video idea.", "images": ""}
+
         prompt = f"""
-        You are an expert prompt writer. Refine the following raw idea into a clear, actionable prompt.
-        Category: {category}
-        Tone: {tone}
+        You are a professional video content creator and AI prompt expert.
+        Refine the following idea into a **video script** suitable for a video of **at least 1 minute**.
+        Include 4-6 scenes or segments.
+        For each scene, provide a short **image prompt** describing visuals for AI image generation.
+        Maintain category: {category} and tone: {tone}.
         Raw idea: {raw_text}
-        Provide the refined prompt in {selected_language}.
+        Provide output in {selected_language}.
+        Format:
+        Scene 1:
+        Script: ...
+        Image Prompt: ...
+        Scene 2:
+        Script: ...
+        Image Prompt: ...
+        ...
         """
+
         try:
             model = genai.GenerativeModel('gemini-1.5-flash-002')
             response = model.generate_content(prompt)
-            return response.text
+            return {"script": response.text, "images": response.text}  # For simplicity, using same output
         except Exception as e:
-            return f"Error refining idea: {e}"
+            return {"script": f"Error refining idea: {e}", "images": ""}
 
     if refine_btn:
-        refined = refine_idea(raw_idea, category, tone)
-        st.subheader("✨ Refined Prompt")
-        st.info(refined)
+        result = refine_video_idea(raw_idea, category, tone)
+        st.subheader("✨ Refined Video Script & Scenes")
+        st.info(result["script"])
 
         # Save to session history
         st.session_state["idea_history"].append({
             "raw": raw_idea,
-            "refined": refined,
+            "refined_script": result["script"],
+            "image_prompts": result["images"],
             "category": category,
             "tone": tone
         })
-
-        # Optional: share or copy button
-        st.button("📋 Copy to Clipboard", on_click=lambda: st.experimental_set_query_params(copy=refined))
