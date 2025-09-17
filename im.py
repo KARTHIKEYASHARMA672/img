@@ -7,8 +7,6 @@ import os
 import google.generativeai as genai
 from PIL import Image
 import traceback
-from gtts import gTTS
-import io
 
 # ===============================
 # 🔹 App Config
@@ -24,9 +22,8 @@ st.sidebar.markdown("""
 
 ✨ Features:
 - Multi-image upload  
-- Chat history  
+- Chat history (with clear option)  
 - Educational toggle (Explain Like I’m 5 vs Expert)  
-- Listen to responses  
 """)
 
 # ===============================
@@ -115,24 +112,16 @@ if submit:
             st.text(traceback.format_exc())
 
 # ===============================
-# 🔹 Speech Output (fixed with BytesIO)
-# ===============================
-if resp_text:
-    if st.button("🔊 Listen to Response"):
-        try:
-            tts = gTTS(resp_text, lang="en")
-            mp3_fp = io.BytesIO()
-            tts.write_to_fp(mp3_fp)
-            mp3_fp.seek(0)
-            st.audio(mp3_fp, format="audio/mp3")
-        except Exception as e:
-            st.error(f"TTS failed: {e}")
-
-# ===============================
-# 🔹 History Section
+# 🔹 History Section with Clear
 # ===============================
 if st.session_state["history"]:
     st.sidebar.subheader("📜 Chat History")
+
+    # Button to clear history
+    if st.sidebar.button("🗑️ Clear History"):
+        st.session_state["history"] = []
+        st.sidebar.success("History cleared!")
+
     for i, (q, r) in enumerate(st.session_state["history"], 1):
         with st.sidebar.expander(f"Query {i}"):
             st.markdown(f"**Q:** {q}")
