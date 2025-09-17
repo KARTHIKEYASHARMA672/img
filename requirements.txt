@@ -3,6 +3,4 @@ google-generativeai
 python-dotenv
 Pillow
 gTTS
-speechrecognition
-pyaudio
-st-mic-recorder
+
