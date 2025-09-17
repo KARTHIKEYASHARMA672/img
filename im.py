@@ -1,4 +1,4 @@
-# streamlit_gemini_app_v6_fixed.py
+# streamlit_gemini_app_v6.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -88,14 +88,7 @@ if st.sidebar.button("💾 Download Video Idea History"):
     if st.session_state["video_idea_history"]:
         txt_data = ""
         for i, item in enumerate(st.session_state["video_idea_history"], 1):
-            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nScript:\n{item['script']}\n"
-            txt_data += "Scenes:\n"
-            for scene in item.get("scenes", []):
-                txt_data += f"  {scene.get('title','Scene')}:\n"
-                txt_data += f"    Script: {scene.get('script','')}\n"
-                txt_data += f"    Image Prompt: {scene.get('image','')}\n"
-                txt_data += f"    Narration: {scene.get('narration','')}\n"
-            txt_data += f"Category: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
+            txt_data += f"Idea {i}:\nRaw: {item['raw']}\nScript:\n{item['script']}\nImage Prompts:\n{item['images']}\nCategory: {item['category']}\nTone: {item['tone']}\n\n{'-'*40}\n\n"
         st.sidebar.download_button(
             label="Download Video Idea History as TXT",
             data=txt_data,
@@ -172,38 +165,30 @@ with tab1:
                 st.text(traceback.format_exc())
 
 # ===============================
-# 🔹 Tab 2: Enhanced Video Idea Organizer
+# 🔹 Tab 2: Video Idea Organizer
 # ===============================
 with tab2:
-    st.header("🎬 Video Idea Organizer (Enhanced)")
+    st.header("🎬 Video Idea Organizer")
 
-    # User input
     raw_idea = st.text_area("📝 Enter your raw video idea:", placeholder="Type your video idea here...")
 
-    # Category & Tone presets
-    category_options = ["Content Creation", "Business", "Academic", "Project Idea"]
-    tone_options = ["Creative", "Funny", "Motivational", "Tutorial", "Educational"]
+    # Fixed category and tone
+    category = "Content Creation"
+    tone = "Creative"
+    st.markdown(f"**Category:** {category}")
+    st.markdown(f"**Tone:** {tone}")
 
-    category = st.selectbox("📂 Select Category:", category_options, index=0)
-    tone = st.selectbox("🎨 Select Tone:", tone_options, index=0)
+    refine_btn = st.button("Refine Idea into Video Script & Images")
 
-    refine_btn = st.button("Refine Idea into Video Script & Scenes")
-
-    # Helper: Estimate video duration
-    def estimate_duration(text):
-        words = len(text.split())
-        duration_minutes = max(1, round(words / 150))  # 150 words ~ 1 min
-        return duration_minutes
-
-    # Helper: Refine idea via AI
     def refine_video_idea(raw_text, category, tone):
         if not raw_text.strip():
-            return {"script": "Please enter a raw video idea.", "scenes": []}
+            return {"script": "Please enter a raw video idea.", "images": ""}
 
         prompt = f"""
-        You are a professional video content creator.
+        You are a professional video content creator and AI prompt expert.
         Refine the following idea into a **video script** for a **minimum 1-minute video**.
-        Include 4-6 scenes with: Script, AI image prompt, and narration-ready text.
+        Include 4-6 scenes or segments.
+        For each scene, provide a short **image prompt** describing visuals for AI image generation.
         Maintain category: {category} and tone: {tone}.
         Raw idea: {raw_text}
         Provide output in {selected_language}.
@@ -211,67 +196,32 @@ with tab2:
         Scene 1:
         Script: ...
         Image Prompt: ...
-        Narration: ...
         Scene 2:
         Script: ...
         Image Prompt: ...
-        Narration: ...
+        ...
         """
         try:
             model = genai.GenerativeModel('gemini-1.5-flash-002')
             response = model.generate_content(prompt)
-            text = response.text
-
-            # Split by scenes
-            scenes = []
-            for part in text.split("Scene ")[1:]:
-                lines = part.strip().split("\n")
-                scene_dict = {"title": "Scene " + lines[0].split(":")[0]}
-                for line in lines[1:]:
-                    if line.startswith("Script:"):
-                        scene_dict["script"] = line.replace("Script:", "").strip()
-                    elif line.startswith("Image Prompt:"):
-                        scene_dict["image"] = line.replace("Image Prompt:", "").strip()
-                    elif line.startswith("Narration:"):
-                        scene_dict["narration"] = line.replace("Narration:", "").strip()
-                scenes.append(scene_dict)
-
-            return {"script": text, "scenes": scenes}
-
+            return {"script": response.text, "images": response.text}  # same output for simplicity
         except Exception as e:
-            return {"script": f"Error refining idea: {e}", "scenes": []}
+            return {"script": f"Error refining idea: {e}", "images": ""}
 
-    # Refine and display
     if refine_btn:
         result = refine_video_idea(raw_idea, category, tone)
-        scenes = result["scenes"]
-        st.subheader("✨ Video Script & Scenes")
+        st.subheader("✨ Refined Video Script & Scenes")
+        st.info(result["script"])
 
-        # Display each scene as a card
-        for i, scene in enumerate(scenes):
-            st.markdown(f"### {scene['title']}")
-            st.markdown(f"**Script:** {scene.get('script','')}")
-            st.markdown(f"**Image Prompt:** {scene.get('image','')}")
-            st.markdown(f"**Narration:** {scene.get('narration','')}")
-            st.button("📋 Copy Script", key=f"copy_script_{i}")
-            st.button("📋 Copy Image Prompt", key=f"copy_image_{i}")
-
-        # Duration estimation
-        total_duration = sum(estimate_duration(s.get("script","")) for s in scenes)
-        st.info(f"🕒 Estimated Video Duration: ~{total_duration} minutes")
-
-        # Save to session history
         st.session_state["video_idea_history"].append({
             "raw": raw_idea,
             "script": result["script"],
-            "scenes": scenes,
+            "images": result["images"],
             "category": category,
             "tone": tone
         })
 
-        # Export buttons
-        st.download_button("💾 Export as JSON", data=str(result), file_name="video_idea.json", mime="application/json")
-        st.download_button("💾 Export as Markdown", data=result["script"], file_name="video_idea.md", mime="text/markdown")
+
 
 # ===============================
 # 🔹 Tab 3: Analyzer History
@@ -281,6 +231,7 @@ with tab3:
     if st.session_state["analyzer_history"]:
         to_delete = []
         for i, (q, r) in enumerate(st.session_state["analyzer_history"]):
+            # Create a row for expander header + delete button
             col1, col2 = st.columns([0.9, 0.1])
             with col1:
                 exp = st.expander(f"Query {i+1}")
@@ -310,16 +261,12 @@ with tab4:
                 if st.button("🗑️", key=f"del_video_{i}"):
                     to_delete.append(i)
             with exp:
-                st.markdown(f"**Raw Idea:** {item['raw']}")
+                st.markdown(f"**Raw:** {item['raw']}")
+                st.markdown(f"**Script & Scenes:**\n{item['script']}")
+                st.markdown(f"**Image Prompts:**\n{item['images']}")
                 st.markdown(f"**Category:** {item['category']}")
                 st.markdown(f"**Tone:** {item['tone']}")
-                st.markdown(f"**Script & Scenes:**")
-                for scene in item.get("scenes", []):
-                    st.markdown(f"### {scene.get('title','Scene')}")
-                    st.markdown(f"**Script:** {scene.get('script','')}")
-                    st.markdown(f"**Image Prompt:** {scene.get('image','')}")
-                    st.markdown(f"**Narration:** {scene.get('narration','')}")
         for idx in sorted(to_delete, reverse=True):
             st.session_state["video_idea_history"].pop(idx)
     else:
-        st.info("No video idea history yet.")
+        st.info("No video idea history yet.") 
