@@ -165,30 +165,38 @@ with tab1:
                 st.text(traceback.format_exc())
 
 # ===============================
-# 🔹 Tab 2: Video Idea Organizer
+# 🔹 Tab 2: Enhanced Video Idea Organizer
 # ===============================
 with tab2:
-    st.header("🎬 Video Idea Organizer")
+    st.header("🎬 Video Idea Organizer (Enhanced)")
 
+    # User input
     raw_idea = st.text_area("📝 Enter your raw video idea:", placeholder="Type your video idea here...")
 
-    # Fixed category and tone
-    category = "Content Creation"
-    tone = "Creative"
-    st.markdown(f"**Category:** {category}")
-    st.markdown(f"**Tone:** {tone}")
+    # Category & Tone presets
+    category_options = ["Content Creation", "Business", "Academic", "Project Idea"]
+    tone_options = ["Creative", "Funny", "Motivational", "Tutorial", "Educational"]
 
-    refine_btn = st.button("Refine Idea into Video Script & Images")
+    category = st.selectbox("📂 Select Category:", category_options, index=0)
+    tone = st.selectbox("🎨 Select Tone:", tone_options, index=0)
 
+    refine_btn = st.button("Refine Idea into Video Script & Scenes")
+
+    # Helper: Estimate video duration
+    def estimate_duration(text):
+        words = len(text.split())
+        duration_minutes = max(1, round(words / 150))  # 150 words ~ 1 min
+        return duration_minutes
+
+    # Helper: Refine idea via AI
     def refine_video_idea(raw_text, category, tone):
         if not raw_text.strip():
-            return {"script": "Please enter a raw video idea.", "images": ""}
+            return {"script": "Please enter a raw video idea.", "scenes": []}
 
         prompt = f"""
-        You are a professional video content creator and AI prompt expert.
+        You are a professional video content creator.
         Refine the following idea into a **video script** for a **minimum 1-minute video**.
-        Include 4-6 scenes or segments.
-        For each scene, provide a short **image prompt** describing visuals for AI image generation.
+        Include 4-6 scenes with: Script, AI image prompt, and narration-ready text.
         Maintain category: {category} and tone: {tone}.
         Raw idea: {raw_text}
         Provide output in {selected_language}.
@@ -196,30 +204,68 @@ with tab2:
         Scene 1:
         Script: ...
         Image Prompt: ...
+        Narration: ...
         Scene 2:
         Script: ...
         Image Prompt: ...
-        ...
+        Narration: ...
         """
         try:
             model = genai.GenerativeModel('gemini-1.5-flash-002')
             response = model.generate_content(prompt)
-            return {"script": response.text, "images": response.text}  # same output for simplicity
-        except Exception as e:
-            return {"script": f"Error refining idea: {e}", "images": ""}
+            text = response.text
 
+            # Split by scenes
+            scenes = []
+            for part in text.split("Scene ")[1:]:
+                lines = part.strip().split("\n")
+                scene_dict = {"title": "Scene " + lines[0].split(":")[0]}
+                for line in lines[1:]:
+                    if line.startswith("Script:"):
+                        scene_dict["script"] = line.replace("Script:", "").strip()
+                    elif line.startswith("Image Prompt:"):
+                        scene_dict["image"] = line.replace("Image Prompt:", "").strip()
+                    elif line.startswith("Narration:"):
+                        scene_dict["narration"] = line.replace("Narration:", "").strip()
+                scenes.append(scene_dict)
+
+            return {"script": text, "scenes": scenes}
+
+        except Exception as e:
+            return {"script": f"Error refining idea: {e}", "scenes": []}
+
+    # Refine and display
     if refine_btn:
         result = refine_video_idea(raw_idea, category, tone)
-        st.subheader("✨ Refined Video Script & Scenes")
-        st.info(result["script"])
+        scenes = result["scenes"]
+        st.subheader("✨ Video Script & Scenes")
 
+        # Display each scene as a card
+        for i, scene in enumerate(scenes):
+            st.markdown(f"### {scene['title']}")
+            st.markdown(f"**Script:** {scene.get('script','')}")
+            st.markdown(f"**Image Prompt:** {scene.get('image','')}")
+            st.markdown(f"**Narration:** {scene.get('narration','')}")
+            st.button("📋 Copy Script", key=f"copy_script_{i}")
+            st.button("📋 Copy Image Prompt", key=f"copy_image_{i}")
+
+        # Duration estimation
+        total_duration = sum(estimate_duration(s.get("script","")) for s in scenes)
+        st.info(f"🕒 Estimated Video Duration: ~{total_duration} minutes")
+
+        # Save to session history
         st.session_state["video_idea_history"].append({
             "raw": raw_idea,
             "script": result["script"],
-            "images": result["images"],
+            "scenes": scenes,
             "category": category,
             "tone": tone
         })
+
+        # Export buttons
+        st.download_button("💾 Export as JSON", data=str(result), file_name="video_idea.json", mime="application/json")
+        st.download_button("💾 Export as Markdown", data=result["script"], file_name="video_idea.md", mime="text/markdown")
+
 
 
 # ===============================
