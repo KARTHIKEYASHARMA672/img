@@ -1,4 +1,4 @@
-# streamlit_gemini_advanced.py
+# streamlit_gemini_app_v3.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -7,9 +7,6 @@ import os
 import google.generativeai as genai
 from PIL import Image
 import traceback
-from io import BytesIO
-from collections import Counter
-import re
 
 # ===============================
 # 🔹 App Config
@@ -36,9 +33,20 @@ if "history" not in st.session_state:
 # ===============================
 st.sidebar.title("📌 Settings / History")
 
-# Multi-modal selection
-mode_options = ["Plants", "Food", "Vehicles"]
-selected_mode = st.sidebar.selectbox("Select Analysis Mode:", mode_options)
+# How it works section
+st.sidebar.subheader("📝 How It Works")
+st.sidebar.markdown("""
+1. Upload one or more images (jpg, jpeg, png).  
+2. (Optional) Enter a question or prompt about the image(s).  
+3. Select the language for the AI response.  
+4. Click **Analyze** to get AI insights.  
+5. View response in the main tab.  
+6. Clear or download your chat history from the sidebar.  
+""")
+
+# Language selection
+language_options = ["English", "Hindi", "Telugu", "Spanish", "French"]
+selected_language = st.sidebar.selectbox("🌐 Select Output Language:", language_options)
 
 # History controls
 st.sidebar.subheader("📜 History")
@@ -79,12 +87,11 @@ with tab1:
     submit = st.button("Analyze")
 
     input_prompt_base = f"""
-    You are an expert analyzing images in the selected mode: {selected_mode}.
+    You are an expert analyzing images. Provide detailed insights in {selected_language}.
     """
 
     resp_text = ""
     summary_text = ""
-    highlighted_keywords = ""
 
     def get_gemini_response(prompt_text, pil_imgs, user_input_text):
         final_prompt = f"{prompt_text}\nUser question: {user_input_text}".strip()
@@ -96,16 +103,6 @@ with tab1:
         except Exception as e:
             raise RuntimeError("Gemini call failed: " + str(e)) from e
 
-    def extract_keywords(text, top_n=10):
-        words = re.findall(r'\b\w+\b', text.lower())
-        common = Counter(words)
-        stopwords = set([
-            "the", "and", "of", "in", "to", "a", "is", "with", "for", "on", "as",
-            "an", "by", "its", "this", "are", "be", "at", "or", "from"
-        ])
-        keywords = [word for word, freq in common.most_common() if word not in stopwords]
-        return ", ".join(keywords[:top_n])
-
     if submit:
         if not API_KEY:
             st.error("Missing API key.")
@@ -114,13 +111,18 @@ with tab1:
         else:
             try:
                 pil_images = []
-                for f in uploaded_files:
+                st.subheader("📷 Uploaded Images")
+                
+                # Side-by-side display using columns
+                num_files = len(uploaded_files)
+                cols = st.columns(num_files)
+                for idx, f in enumerate(uploaded_files):
                     img = Image.open(f).convert("RGB")
-                    st.image(img, caption=f"Uploaded: {f.name}", use_container_width=True)
                     pil_images.append(img)
+                    cols[idx].image(img, caption=f.name, use_container_width=True)
 
                 with st.spinner("🤖 Analyzing with Gemini..."):
-                    user_q = user_text or f"Analyze the uploaded {selected_mode.lower()} images."
+                    user_q = user_text or "Analyze the uploaded images."
                     resp_text = get_gemini_response(input_prompt_base, pil_images, user_q)
                     st.subheader("✨ Response")
                     st.write(resp_text)
@@ -132,11 +134,6 @@ with tab1:
                     summary_text = ". ".join(resp_text.split(".")[:3]) + "."
                     st.subheader("📝 Summary")
                     st.write(summary_text)
-
-                    # Highlight keywords
-                    highlighted_keywords = extract_keywords(resp_text)
-                    st.subheader("🔑 Keywords")
-                    st.write(highlighted_keywords)
 
             except Exception as exc:
                 st.error("Error while calling Gemini API.")
