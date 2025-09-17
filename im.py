@@ -1,100 +1,94 @@
-import streamlit as st
-import google.generativeai as genai
-import os
-import io
-import base64
-import speech_recognition as sr
-from PIL import Image
+# streamlit_gemini_voice.py
 
-# ----------------- CONFIG -----------------
-genai.configure(api_key="YOUR_API_KEY")  # 🔑 Replace with your Gemini API key
+import streamlit as st
+from st_mic_recorder import mic_recorder
+import google.generativeai as genai
+from PIL import Image
+import io, base64, os
+
+# --- API Key setup ---
+API_KEY = os.getenv("GOOGLE_API_KEY")
+if not API_KEY:
+    st.error("Environment variable GOOGLE_API_KEY not set.")
+else:
+    genai.configure(api_key=API_KEY)
+
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ----------------- SESSION STATE -----------------
+# --- Streamlit page settings ---
+st.set_page_config(page_title="🎤📷 AI Image & Voice Assistant", layout="wide")
+st.title("🎤📷 AI Image & Voice Assistant")
+
+# --- Session state for history ---
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# ----------------- FUNCTIONS -----------------
-def recognize_speech():
-    """Capture voice and convert to text"""
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("🎤 Listening... please speak clearly")
-        audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+# --- Mode selection ---
+mode = st.radio("Choose Response Mode:", ["Expert", "ELI5"], horizontal=True)
 
-    try:
-        text = recognizer.recognize_google(audio)
-        st.success(f"✅ Recognized Speech: {text}")
-        return text
-    except sr.UnknownValueError:
-        st.error("❌ Could not understand audio")
-    except sr.RequestError:
-        st.error("⚠️ Speech Recognition service unavailable")
-    return None
+# --- Clear history button ---
+if st.button("🗑️ Clear History"):
+    st.session_state.history = []
+    st.success("History cleared!")
 
+# --- Image upload ---
+uploaded_files = st.file_uploader(
+    "📂 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True
+)
+
+# --- Voice input ---
+st.subheader("🎙️ Speak your prompt")
+voice_text = mic_recorder(
+    start_prompt="🎤 Record", stop_prompt="⏹️ Stop",
+    just_once=True, use_container_width=True
+)
+
+# --- Text input ---
+user_input = st.text_area("Or type your question:")
+
+if voice_text:
+    user_input = voice_text
+    st.success(f"🗣️ Recognized: {user_input}")
+
+# --- Gemini Response Function ---
 def get_gemini_response(prompt, images, mode):
-    """Send text + images to Gemini model"""
     contents = [prompt]
     for img in images:
         contents.append(img)
 
-    # Choose system instruction
     if mode == "Expert":
         sys_instruction = "Act as a domain expert. Give detailed, structured explanations."
     else:
         sys_instruction = "Explain like I’m 5 (simple, fun, easy to understand)."
 
     response = model.generate_content(
-        [{"role": "system", "parts": [sys_instruction]},
-         {"role": "user", "parts": contents}]
+        [
+            {"role": "system", "parts": [sys_instruction]},
+            {"role": "user", "parts": contents},
+        ]
     )
     return response.text
 
-def add_to_history(user_text, response):
-    st.session_state.history.append({"user": user_text, "bot": response})
-
-# ----------------- UI -----------------
-st.title("🎤📷 AI Image & Voice Assistant")
-
-col1, col2 = st.columns([2,1])
-with col1:
-    mode = st.radio("Choose Response Mode:", ["Expert", "ELI5"], horizontal=True)
-with col2:
-    if st.button("🗑️ Clear History"):
-        st.session_state.history = []
-
-uploaded_files = st.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-# Text input OR speech input
-tab1, tab2 = st.tabs(["⌨️ Type Prompt", "🎙️ Speak Prompt"])
-
-with tab1:
-    user_input = st.text_area("Enter your question:", key="typed_prompt")
-
-with tab2:
-    if st.button("🎤 Record Voice"):
-        voice_text = recognize_speech()
-        if voice_text:
-            st.session_state["typed_prompt"] = voice_text
-            user_input = voice_text
-
-# ----------------- RUN AI -----------------
+# --- Submit button ---
 if st.button("🚀 Generate Response"):
     if not user_input and not uploaded_files:
         st.warning("Please provide a prompt or upload an image.")
     else:
         images = []
         for file in uploaded_files:
-            image = Image.open(file)
-            buffered = io.BytesIO()
-            image.save(buffered, format="PNG")
-            img_b64 = base64.b64encode(buffered.getvalue()).decode()
-            images.append({"mime_type": "image/png", "data": img_b64})
+            try:
+                image = Image.open(file)
+                buffered = io.BytesIO()
+                image.save(buffered, format="PNG")
+                img_b64 = base64.b64encode(buffered.getvalue()).decode()
+                images.append({"mime_type": "image/png", "data": img_b64})
+            except Exception as e:
+                st.error(f"Failed to process {file.name}: {e}")
 
         response = get_gemini_response(user_input, images, mode)
-        add_to_history(user_input, response)
+        st.session_state.history.append({"user": user_input, "bot": response})
 
-# ----------------- DISPLAY HISTORY -----------------
+# --- Show history ---
 st.subheader("💬 Conversation History")
 for chat in st.session_state.history:
     st.markdown(f"**🧑 You:** {chat['user']}")
