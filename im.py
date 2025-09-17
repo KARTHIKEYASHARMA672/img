@@ -1,96 +1,128 @@
-# streamlit_gemini_voice.py
+# streamlit_gemini_app.py
+from dotenv import load_dotenv
+load_dotenv()
 
 import streamlit as st
-from st_mic_recorder import mic_recorder
+import os
 import google.generativeai as genai
 from PIL import Image
-import io, base64, os
+import traceback
 
-# --- API Key setup ---
+# ===============================
+# 🔹 App Config
+# ===============================
+st.set_page_config(page_title="AI Image & Text Analyzer", layout="wide")
+
+# Sidebar instructions
+st.sidebar.title("📌 How to Use")
+st.sidebar.markdown("""
+1. Upload one or more images.  
+2. (Optional) Enter a question/prompt.  
+3. Click **Analyze** to get results.  
+
+✨ Features:
+- Multi-image upload  
+- Chat history (with clear option)  
+- Educational toggle (Explain Like I’m 5 vs Expert)  
+""")
+
+# ===============================
+# 🔹 Gemini Config
+# ===============================
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     st.error("Environment variable GOOGLE_API_KEY not set.")
 else:
     genai.configure(api_key=API_KEY)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# --- Streamlit page settings ---
-st.set_page_config(page_title="🎤📷 AI Image & Voice Assistant", layout="wide")
-st.title("🎤📷 AI Image & Voice Assistant")
-
-# --- Session state for history ---
+# ===============================
+# 🔹 Session State for History
+# ===============================
 if "history" not in st.session_state:
-    st.session_state.history = []
+    st.session_state["history"] = []
 
-# --- Mode selection ---
-mode = st.radio("Choose Response Mode:", ["Expert", "ELI5"], horizontal=True)
+# ===============================
+# 🔹 User Inputs
+# ===============================
+user_text = st.text_input("💬 Ask a Question (optional):", key="input")
 
-# --- Clear history button ---
-if st.button("🗑️ Clear History"):
-    st.session_state.history = []
-    st.success("History cleared!")
-
-# --- Image upload ---
 uploaded_files = st.file_uploader(
-    "📂 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True
+    "📂 Upload image(s)...", 
+    type=["jpg", "jpeg", "png"], 
+    accept_multiple_files=True
 )
 
-# --- Voice input ---
-st.subheader("🎙️ Speak your prompt")
-voice_text = mic_recorder(
-    start_prompt="🎤 Record", stop_prompt="⏹️ Stop",
-    just_once=True, use_container_width=True
-)
+mode = st.radio("Response Style:", ["Expert", "Explain Like I'm 5"], horizontal=True)
 
-# --- Text input ---
-user_input = st.text_area("Or type your question:")
+submit = st.button("🔍 Analyze")
 
-if voice_text:
-    user_input = voice_text
-    st.success(f"🗣️ Recognized: {user_input}")
+# ===============================
+# 🔹 Gemini Call
+# ===============================
+def get_gemini_response(prompt_text, pil_imgs, user_input_text, style_mode):
+    style = "Explain like I’m 5." if style_mode == "Explain Like I'm 5" else "Give a detailed expert analysis."
+    final_prompt = f"{prompt_text}\n\n{style}\n\nUser question: {user_input_text}".strip()
 
-# --- Gemini Response Function ---
-def get_gemini_response(prompt, images, mode):
-    contents = [prompt]
-    for img in images:
-        contents.append(img)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash-002')
+        parts = [final_prompt] + pil_imgs   # combine text + images
+        response = model.generate_content(parts)
+        return response.text
+    except Exception as e:
+        raise RuntimeError("Gemini call failed: " + str(e)) from e
 
-    if mode == "Expert":
-        sys_instruction = "Act as a domain expert. Give detailed, structured explanations."
+# ===============================
+# 🔹 Main Logic
+# ===============================
+input_prompt = """
+You are an expert in analyzing images (e.g., leaves, food, objects).
+Give insights based on the uploaded images and user’s question.
+"""
+
+resp_text = ""
+
+if submit:
+    if not API_KEY:
+        st.error("Missing API key — set GOOGLE_API_KEY in your environment.")
+    elif not uploaded_files:
+        st.error("Please upload at least one image.")
     else:
-        sys_instruction = "Explain like I’m 5 (simple, fun, easy to understand)."
+        try:
+            pil_images = []
+            for f in uploaded_files:
+                img = Image.open(f).convert("RGB")
+                st.image(img, caption=f"Uploaded: {f.name}", use_container_width=True)
+                pil_images.append(img)
 
-    response = model.generate_content(
-        [
-            {"role": "system", "parts": [sys_instruction]},
-            {"role": "user", "parts": contents},
-        ]
-    )
-    return response.text
+            with st.spinner("🤖 Analyzing with Gemini..."):
+                user_q = user_text or "Identify and explain the uploaded image(s)."
+                resp_text = get_gemini_response(input_prompt, pil_images, user_q, mode)
 
-# --- Submit button ---
-if st.button("🚀 Generate Response"):
-    if not user_input and not uploaded_files:
-        st.warning("Please provide a prompt or upload an image.")
-    else:
-        images = []
-        for file in uploaded_files:
-            try:
-                image = Image.open(file)
-                buffered = io.BytesIO()
-                image.save(buffered, format="PNG")
-                img_b64 = base64.b64encode(buffered.getvalue()).decode()
-                images.append({"mime_type": "image/png", "data": img_b64})
-            except Exception as e:
-                st.error(f"Failed to process {file.name}: {e}")
+                st.subheader("✨ Response")
+                st.write(resp_text)
 
-        response = get_gemini_response(user_input, images, mode)
-        st.session_state.history.append({"user": user_input, "bot": response})
+                # Copy-to-clipboard box
+                st.code(resp_text, language="markdown")
 
-# --- Show history ---
-st.subheader("💬 Conversation History")
-for chat in st.session_state.history:
-    st.markdown(f"**🧑 You:** {chat['user']}")
-    st.markdown(f"**🤖 AI:** {chat['bot']}")
-    st.divider()
+                # Save to history
+                st.session_state["history"].append((user_q, resp_text))
+
+        except Exception as exc:
+            st.error("Error while calling the Gemini API.")
+            st.text(traceback.format_exc())
+
+# ===============================
+# 🔹 History Section with Clear
+# ===============================
+if st.session_state["history"]:
+    st.sidebar.subheader("📜 Chat History")
+
+    # Button to clear history
+    if st.sidebar.button("🗑️ Clear History"):
+        st.session_state["history"] = []
+        st.sidebar.success("History cleared!")
+
+    for i, (q, r) in enumerate(st.session_state["history"], 1):
+        with st.sidebar.expander(f"Query {i}"):
+            st.markdown(f"**Q:** {q}")
+            st.markdown(f"**A:** {r}")
