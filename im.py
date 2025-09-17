@@ -228,10 +228,13 @@ with tab2:
 with tab3:
     st.header("📜 Analyzer History")
     if st.session_state["analyzer_history"]:
-        for i, (q, r) in enumerate(st.session_state["analyzer_history"], 1):
-            with st.expander(f"Query {i}"):
+        for i, (q, r) in enumerate(st.session_state["analyzer_history"]):
+            with st.expander(f"Query {i+1}"):
                 st.markdown(f"**Q:** {q}")
                 st.markdown(f"**A:** {r}")
+                if st.button("🗑️ Delete this Query", key=f"del_analyzer_{i}"):
+                    st.session_state["analyzer_history"].pop(i)
+                    st.experimental_rerun()  # refresh page to update history
     else:
         st.info("No analyzer history available.")
 
@@ -241,12 +244,15 @@ with tab3:
 with tab4:
     st.header("📜 Video Idea History")
     if st.session_state["video_idea_history"]:
-        for i, item in enumerate(st.session_state["video_idea_history"], 1):
-            with st.expander(f"Idea {i}"):
+        for i, item in enumerate(st.session_state["video_idea_history"]):
+            with st.expander(f"Idea {i+1}"):
                 st.markdown(f"**Raw:** {item['raw']}")
                 st.markdown(f"**Script & Scenes:**\n{item['script']}")
                 st.markdown(f"**Image Prompts:**\n{item['images']}")
                 st.markdown(f"**Category:** {item['category']}")
                 st.markdown(f"**Tone:** {item['tone']}")
+                if st.button("🗑️ Delete this Idea", key=f"del_video_{i}"):
+                    st.session_state["video_idea_history"].pop(i)
+                    st.experimental_rerun()  # refresh page to update history
     else:
         st.info("No video idea history yet.")
