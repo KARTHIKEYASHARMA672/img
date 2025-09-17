@@ -228,16 +228,20 @@ with tab2:
 with tab3:
     st.header("📜 Analyzer History")
     if st.session_state["analyzer_history"]:
-        delete_idx = None  # Track which entry to delete
+        to_delete = []
         for i, (q, r) in enumerate(st.session_state["analyzer_history"]):
-            with st.expander(f"Query {i+1}"):
+            # Create a row for expander header + delete button
+            col1, col2 = st.columns([0.9, 0.1])
+            with col1:
+                exp = st.expander(f"Query {i+1}")
+            with col2:
+                if st.button("🗑️", key=f"del_analyzer_{i}"):
+                    to_delete.append(i)
+            with exp:
                 st.markdown(f"**Q:** {q}")
                 st.markdown(f"**A:** {r}")
-                if st.button("🗑️ Delete this Query", key=f"del_analyzer_{i}"):
-                    delete_idx = i
-        if delete_idx is not None:
-            st.session_state["analyzer_history"].pop(delete_idx)
-            st.experimental_rerun()
+        for idx in sorted(to_delete, reverse=True):
+            st.session_state["analyzer_history"].pop(idx)
     else:
         st.info("No analyzer history available.")
 
@@ -247,18 +251,21 @@ with tab3:
 with tab4:
     st.header("📜 Video Idea History")
     if st.session_state["video_idea_history"]:
-        delete_idx = None  # Track which entry to delete
+        to_delete = []
         for i, item in enumerate(st.session_state["video_idea_history"]):
-            with st.expander(f"Idea {i+1}"):
+            col1, col2 = st.columns([0.9, 0.1])
+            with col1:
+                exp = st.expander(f"Idea {i+1}")
+            with col2:
+                if st.button("🗑️", key=f"del_video_{i}"):
+                    to_delete.append(i)
+            with exp:
                 st.markdown(f"**Raw:** {item['raw']}")
                 st.markdown(f"**Script & Scenes:**\n{item['script']}")
                 st.markdown(f"**Image Prompts:**\n{item['images']}")
                 st.markdown(f"**Category:** {item['category']}")
                 st.markdown(f"**Tone:** {item['tone']}")
-                if st.button("🗑️ Delete this Idea", key=f"del_video_{i}"):
-                    delete_idx = i
-        if delete_idx is not None:
-            st.session_state["video_idea_history"].pop(delete_idx)
-            st.experimental_rerun()
+        for idx in sorted(to_delete, reverse=True):
+            st.session_state["video_idea_history"].pop(idx)
     else:
         st.info("No video idea history yet.")
