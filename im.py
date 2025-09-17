@@ -698,7 +698,7 @@ if submit:
         st.error("Please upload an image first.")
     else:
         try:
-            with st.spinner("Contacting Gemini API..."):
+            with st.spinner("Loading......"):
                 # Use the user_provided text if present, else a default prompt
                 user_q = user_text or "Identify and explain the uploaded image."
                 resp_text = get_gemini_response(input_prompt, pil_image, user_q)
