@@ -130,7 +130,7 @@ with tab1:
     def get_gemini_response(prompt_text, pil_imgs, user_input_text):
         final_prompt = f"{prompt_text}\nUser question: {user_input_text}".strip()
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             parts = [final_prompt] + pil_imgs
             response = model.generate_content(parts)
             return response.text
