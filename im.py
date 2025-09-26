@@ -152,7 +152,7 @@ with tab1:
                     pil_images.append(img)
                     cols[idx].image(img, caption=f.name, use_container_width=True)
 
-                with st.spinner("🤖 Analyzing with Gemini..."):
+                with st.spinner("🤖 Response..."):
                     user_q = user_text or "Analyze the uploaded images."
                     resp_text = get_gemini_response(input_prompt_base, pil_images, user_q)
                     st.subheader("✨ Response")
