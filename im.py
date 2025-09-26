@@ -207,7 +207,7 @@ with tab2:
         Narration: ...
         """
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash-002')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             return {"script": response.text, "images": response.text, "narration": response.text}
         except Exception as e:
