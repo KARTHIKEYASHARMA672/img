@@ -130,7 +130,7 @@ with tab1:
     def get_gemini_response(prompt_text, pil_imgs, user_input_text):
         final_prompt = f"{prompt_text}\nUser question: {user_input_text}".strip()
         try:
-            model = genai.GenerativeModel('gemini-2.5-flash-001')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             parts = [final_prompt] + pil_imgs
             response = model.generate_content(parts)
             return response.text
@@ -207,7 +207,7 @@ with tab2:
         Narration: ...
         """
         try:
-            model = genai.GenerativeModel('gemini-2.5-flash-001')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             return {"script": response.text, "images": response.text, "narration": response.text}
         except Exception as e:
